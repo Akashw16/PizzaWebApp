@@ -10,18 +10,18 @@ import javax.annotation.PostConstruct;
 
 @Configuration
 public class StripeConfig {
-
     private static final Logger logger = LoggerFactory.getLogger(StripeConfig.class);
 
-    @Value("${stripe.secret-key}") // Updated to match the property name in application.properties
+    @Value("${stripe.secret-key}")
     private String stripeApiKey;
 
     @PostConstruct
     public void init() {
         if (stripeApiKey == null || stripeApiKey.isEmpty()) {
+            logger.error("Stripe API key is not configured. Please check your application.properties file.");
             throw new IllegalArgumentException("Stripe API key is not configured.");
         }
-        Stripe.apiKey = stripeApiKey; // Initialize Stripe with your secret key
+        Stripe.apiKey = stripeApiKey;
         logger.info("Stripe API initialized successfully.");
     }
 }

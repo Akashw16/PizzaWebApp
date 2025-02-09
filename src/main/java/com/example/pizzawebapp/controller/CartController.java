@@ -1,37 +1,133 @@
 package com.example.pizzawebapp.controller;
 
+import com.example.pizzawebapp.dto.CartItemRequest;
 import com.example.pizzawebapp.entity.User;
 import com.example.pizzawebapp.service.CartService;
+import com.example.pizzawebapp.service.PromoCodeService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/cart")
 public class CartController {
 
+    private static final Logger logger = LoggerFactory.getLogger(CartController.class);
+
     @Autowired
     private CartService cartService;
 
+    @Autowired
+    private PromoCodeService promoCodeService;
+
+    /**
+     * Get the cart for the authenticated user.
+     */
     @GetMapping
-    public ResponseEntity<?> getCart(@RequestAttribute("user") User user) {
-        return ResponseEntity.ok(cartService.getCartByUser(user));
+    public ResponseEntity<Map<String, Object>> getCart(@RequestAttribute("user") User user) {
+        try {
+            Map<String, Object> cartDetails = cartService.getCartByUser(user);
+            return ResponseEntity.ok(cartDetails);
+        } catch (Exception e) {
+            logger.error("Error fetching cart for user {}: {}", user.getUsername(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
     }
 
+    /**
+     * Add a single item to the cart.
+     */
     @PostMapping("/add")
-    public ResponseEntity<Void> addItemToCart(
+    public ResponseEntity<?> addItemToCart(
             @RequestAttribute("user") User user,
             @RequestParam Long pizzaId,
-            @RequestParam int quantity) {
-        cartService.addItemToCart(user, pizzaId, quantity);
-        return ResponseEntity.ok().build();
+            @RequestParam(defaultValue = "1") int quantity) {
+        if (quantity <= 0) {
+            logger.warn("Invalid quantity provided: {}", quantity);
+            return ResponseEntity.badRequest().body("Quantity must be greater than zero.");
+        }
+        try {
+            cartService.addItemToCart(user, pizzaId, quantity);
+            logger.info("Item added to cart for user {}: Pizza ID {}, Quantity {}", user.getUsername(), pizzaId, quantity);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            logger.error("Error adding item to cart for user {}: {}", user.getUsername(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while adding the item to the cart.");
+        }
     }
 
+    /**
+     * Add multiple items to the cart.
+     */
+    @PostMapping("/add-multiple")
+    public ResponseEntity<?> addMultipleItemsToCart(
+            @RequestAttribute("user") User user,
+            @RequestBody List<CartItemRequest> cartItems) {
+        try {
+            for (CartItemRequest item : cartItems) {
+                if (item.getQuantity() <= 0) {
+                    logger.warn("Invalid quantity provided for pizza ID {}: {}", item.getPizzaId(), item.getQuantity());
+                    return ResponseEntity.badRequest().body("Quantity must be greater than zero.");
+                }
+                cartService.addItemToCart(user, item.getPizzaId(), item.getQuantity());
+            }
+            logger.info("Multiple items added to cart for user {}", user.getUsername());
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            logger.error("Error adding multiple items to cart for user {}: {}", user.getUsername(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while adding items to the cart.");
+        }
+    }
+
+    /**
+     * Remove an item from the cart.
+     */
     @DeleteMapping("/remove/{pizzaId}")
-    public ResponseEntity<Void> removeItemFromCart(
+    public ResponseEntity<?> removeItemFromCart(
             @RequestAttribute("user") User user,
             @PathVariable Long pizzaId) {
-        cartService.removeItemFromCart(user, pizzaId);
-        return ResponseEntity.noContent().build();
+        try {
+            cartService.removeItemFromCart(user, pizzaId);
+            logger.info("Item removed from cart for user {}: Pizza ID {}", user.getUsername(), pizzaId);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            logger.error("Error removing item from cart for user {}: {}", user.getUsername(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while removing the item from the cart.");
+        }
+    }
+
+    /**
+     * Apply a promo code to the cart total.
+     */
+    @PostMapping("/apply-promo")
+    public ResponseEntity<Map<String, Object>> applyPromoCode(
+            @RequestAttribute("user") User user,
+            @RequestParam String code) {
+        try {
+            double cartTotal = cartService.calculateTotalAmount(user); // Calculate the current cart total
+            double discountedTotal = promoCodeService.applyPromoCode(code, cartTotal); // Apply the promo code
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("originalTotal", cartTotal);
+            response.put("discountedTotal", discountedTotal);
+
+            logger.info("Promo code applied successfully for user {}: Original Total {}, Discounted Total {}",
+                    user.getUsername(), cartTotal, discountedTotal);
+
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Invalid promo code used by user {}: {}", user.getUsername(), e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Error applying promo code for user {}: {}", user.getUsername(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "An error occurred while applying the promo code."));
+        }
     }
 }

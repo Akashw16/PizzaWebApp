@@ -6,13 +6,21 @@ import com.example.pizzawebapp.entity.Pizza;
 import com.example.pizzawebapp.entity.User;
 import com.example.pizzawebapp.repository.CartRepository;
 import com.example.pizzawebapp.repository.PizzaRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class CartService {
+
+    private static final Logger logger = LoggerFactory.getLogger(CartService.class);
 
     @Autowired
     private CartRepository cartRepository;
@@ -20,41 +28,74 @@ public class CartService {
     @Autowired
     private PizzaRepository pizzaRepository;
 
-    public Cart getCartByUser(User user) {
+    public Map<String, Object> getCartByUser(User user) {
+        Cart cart = getOrCreateCart(user);
+        Map<String, Object> cartMap = new HashMap<>();
+        cartMap.put("cartId", cart.getId());
+        cartMap.put("items", cart.getItems());
+        cartMap.put("totalPrice", cart.getTotalPrice());
+        return cartMap;
+    }
+
+    public void addItemToCart(User user, Long pizzaId, int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than zero.");
+        }
+
+        Pizza pizza = pizzaRepository.findById(pizzaId)
+                .orElseThrow(() -> new RuntimeException("Pizza not found"));
+
+        Cart cart = getOrCreateCart(user);
+
+        cart.getItems().stream()
+                .filter(item -> item.getPizza().getId().equals(pizzaId))
+                .findFirst()
+                .ifPresentOrElse(
+                        existingItem -> {
+                            existingItem.setQuantity(existingItem.getQuantity() + quantity);
+                            logger.info("Updated quantity of pizza ID {} in cart for user {}", pizzaId, user.getUsername());
+                        },
+                        () -> {
+                            CartItem newItem = new CartItem();
+                            newItem.setPizza(pizza);
+                            newItem.setQuantity(quantity);
+                            cart.addItem(newItem);
+                            logger.info("Added {} quantity of pizza ID {} to cart for user {}", quantity, pizzaId, user.getUsername());
+                        }
+                );
+
+        cartRepository.save(cart);
+    }
+
+    public void removeItemFromCart(User user, Long pizzaId) {
+        Cart cart = getOrCreateCart(user);
+        boolean removed = cart.getItems().removeIf(item -> item.getPizza().getId().equals(pizzaId));
+        if (removed) {
+            cartRepository.save(cart);
+            logger.info("Removed pizza ID {} from cart for user {}", pizzaId, user.getUsername());
+        } else {
+            logger.warn("Pizza ID {} not found in cart for user {}", pizzaId, user.getUsername());
+        }
+    }
+
+    public double calculateTotalAmount(User user) {
+        Cart cart = getOrCreateCart(user);
+        return cart.getItems().stream()
+                .mapToDouble(item -> item.getPizza().getPrice()
+                        .multiply(BigDecimal.valueOf(item.getQuantity()))
+                        .doubleValue())
+                .sum();
+    }
+
+    private Cart getOrCreateCart(User user) {
         return cartRepository.findByUser(user)
                 .orElseGet(() -> createNewCart(user));
     }
 
     private Cart createNewCart(User user) {
         Cart cart = new Cart();
-        cart.setUser(user); // Set the user for the cart
-        return cartRepository.save(cart); // Save the new cart
-    }
-
-    public void addItemToCart(User user, Long pizzaId, int quantity) {
-        Pizza pizza = pizzaRepository.findById(pizzaId)
-                .orElseThrow(() -> new RuntimeException("Pizza not found"));
-
-        Cart cart = getCartByUser(user);
-        Optional<CartItem> existingItem = cart.getItems().stream()
-                .filter(item -> item.getPizza().getId().equals(pizzaId))
-                .findFirst();
-
-        if (existingItem.isPresent()) {
-            existingItem.get().setQuantity(existingItem.get().getQuantity() + quantity);
-        } else {
-            CartItem newItem = new CartItem();
-            newItem.setPizza(pizza); // Set the pizza for the cart item
-            newItem.setQuantity(quantity); // Set the quantity for the cart item
-            cart.addItem(newItem); // Add the item to the cart
-        }
-
-        cartRepository.save(cart); // Save the updated cart
-    }
-
-    public void removeItemFromCart(User user, Long pizzaId) {
-        Cart cart = getCartByUser(user);
-        cart.getItems().removeIf(item -> item.getPizza().getId().equals(pizzaId));
-        cartRepository.save(cart); // Save the updated cart
+        cart.setUser(user);
+        logger.info("Created new cart for user {}", user.getUsername());
+        return cartRepository.save(cart);
     }
 }

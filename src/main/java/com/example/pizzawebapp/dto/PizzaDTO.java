@@ -1,20 +1,13 @@
-package com.example.pizzawebapp.entity;
+package com.example.pizzawebapp.dto;
 
-import jakarta.persistence.*;
-import lombok.Data;
 import java.math.BigDecimal;
 
-@Entity
-@Data // Generates getters and setters automatically (if Lombok works)
-public class Pizza {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+public class PizzaDTO {
     private Long id;
-
     private String name;
     private BigDecimal price;
 
-    // Manual getters and setters (if Lombok is not working)
+    // Getters and Setters
     public Long getId() {
         return id;
     }
