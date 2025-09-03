@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,15 +18,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+@Component
 public class JwtAuthorizationFilter extends OncePerRequestFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtAuthorizationFilter.class);
 
-    @Autowired
-    private JwtUtil jwtUtil;
+    private final JwtUtil jwtUtil;
+    private final UserService userService;
 
-    @Autowired
-    private UserService userService;
+    public JwtAuthorizationFilter(JwtUtil jwtUtil, UserService userService) {
+        this.jwtUtil = jwtUtil;
+        this.userService = userService;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -34,15 +38,15 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
         if (jwt != null) {
             try {
                 String username = jwtUtil.extractUsername(jwt);
-                UserDetails userDetails = userService.loadUserByUsername(username);
+                var userDetails = userService.loadUserByUsername(username);
                 if (jwtUtil.validateToken(jwt, userDetails)) {
                     var authenticationToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
                     authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authenticationToken);
 
-                    // Fetch the User entity and set it as a request attribute
-                    User user = userService.getAuthenticatedUser(userDetails);
+                    // Add User entity as request attribute
+                    var user = userService.getAuthenticatedUser(userDetails);
                     request.setAttribute("user", user);
                 }
             } catch (Exception e) {

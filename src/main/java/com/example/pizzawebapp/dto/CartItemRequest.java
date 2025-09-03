@@ -1,14 +1,29 @@
 package com.example.pizzawebapp.dto;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
-import lombok.Data;
-
-@Data
 public class CartItemRequest {
-    @NotNull(message = "Pizza ID cannot be null")
     private Long pizzaId;
-
-    @Min(value = 1, message = "Quantity must be greater than zero")
     private int quantity;
+
+    public CartItemRequest() {}
+
+    public CartItemRequest(Long pizzaId, int quantity) {
+        this.pizzaId = pizzaId;
+        this.quantity = quantity;
+    }
+
+    public Long getPizzaId() {
+        return pizzaId;
+    }
+
+    public void setPizzaId(Long pizzaId) {
+        this.pizzaId = pizzaId;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
+    }
 }

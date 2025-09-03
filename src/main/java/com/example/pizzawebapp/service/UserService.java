@@ -160,6 +160,9 @@ public class UserService implements UserDetailsService {
         LocalDateTime expiryDate = LocalDateTime.now().plusHours(24);
         EmailVerificationToken verificationToken = new EmailVerificationToken(token, user, expiryDate);
         emailVerificationTokenRepository.save(verificationToken);
+
         logger.info("Verification email sent to: {}", user.getUsername());
+        logger.info("✅ Use this link in Postman: http://localhost:8080/api/auth/verify-email?token={}", token);
     }
+
 }

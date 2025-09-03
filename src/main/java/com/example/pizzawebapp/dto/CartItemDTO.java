@@ -1,40 +1,73 @@
 package com.example.pizzawebapp.dto;
 
 import com.example.pizzawebapp.entity.CartItem;
-import com.example.pizzawebapp.entity.Pizza;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
-@Data // Generates getters, setters, equals, hashCode, and toString automatically
-@NoArgsConstructor
-@AllArgsConstructor
+import java.math.BigDecimal;
+
 public class CartItemDTO {
-    private Long id;
-    private Pizza pizza;
-    private Integer quantity;
+    private Long pizzaId;
+    private String pizzaName;
+    private int quantity;
+    private BigDecimal pricePerUnit;
+    private BigDecimal totalPrice;
 
-    // Manually added setter methods
-    public void setId(Long id) {
-        this.id = id;
+    public CartItemDTO() {}
+
+    public CartItemDTO(Long pizzaId, String pizzaName, int quantity, BigDecimal pricePerUnit, BigDecimal totalPrice) {
+        this.pizzaId = pizzaId;
+        this.pizzaName = pizzaName;
+        this.quantity = quantity;
+        this.pricePerUnit = pricePerUnit;
+        this.totalPrice = totalPrice;
     }
 
-    public void setPizza(Pizza pizza) {
-        this.pizza = pizza;
+    public Long getPizzaId() {
+        return pizzaId;
     }
 
-    public void setQuantity(Integer quantity) {
+    public void setPizzaId(Long pizzaId) {
+        this.pizzaId = pizzaId;
+    }
+
+    public String getPizzaName() {
+        return pizzaName;
+    }
+
+    public void setPizzaName(String pizzaName) {
+        this.pizzaName = pizzaName;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(int quantity) {
         this.quantity = quantity;
     }
 
-    /**
-     * Converts a CartItem entity into a CartItemDTO.
-     */
-    public static CartItemDTO fromEntity(CartItem cartItem) {
-        CartItemDTO cartItemDTO = new CartItemDTO();
-        cartItemDTO.setId(cartItem.getId());
-        cartItemDTO.setPizza(cartItem.getPizza());
-        cartItemDTO.setQuantity(cartItem.getQuantity());
-        return cartItemDTO;
+    public BigDecimal getPricePerUnit() {
+        return pricePerUnit;
+    }
+
+    public void setPricePerUnit(BigDecimal pricePerUnit) {
+        this.pricePerUnit = pricePerUnit;
+    }
+
+    public BigDecimal getTotalPrice() {
+        return totalPrice;
+    }
+
+    public void setTotalPrice(BigDecimal totalPrice) {
+        this.totalPrice = totalPrice;
+    }
+
+    public static CartItemDTO fromEntity(CartItem item) {
+        return new CartItemDTO(
+                item.getPizza().getId(),
+                item.getPizza().getName(),
+                item.getQuantity(),
+                item.getPizza().getPrice(),
+                item.getTotalPrice()
+        );
     }
 }
