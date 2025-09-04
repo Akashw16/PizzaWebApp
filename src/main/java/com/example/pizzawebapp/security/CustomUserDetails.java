@@ -33,21 +33,25 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        return true; // Account is always non-expired
+        return true;
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return true; // Account is always non-locked
+        return true;
     }
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return true; // Credentials are always non-expired
+        return true;
     }
 
     @Override
     public boolean isEnabled() {
-        return true; // User is always enabled
+        return user.isEmailVerified(); // ✅ only allow login if email is verified
+    }
+
+    public User getUser() {
+        return user;
     }
 }

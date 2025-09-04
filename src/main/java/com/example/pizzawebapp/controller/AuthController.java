@@ -10,7 +10,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,24 +19,20 @@ public class AuthController {
     private final UserService userService;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
-    private final PasswordEncoder passwordEncoder;
 
-    // ✅ Manual constructor injection (no Lombok needed)
     public AuthController(UserService userService,
                           JwtUtil jwtUtil,
-                          AuthenticationManager authenticationManager,
-                          PasswordEncoder passwordEncoder) {
+                          AuthenticationManager authenticationManager) {
         this.userService = userService;
         this.jwtUtil = jwtUtil;
         this.authenticationManager = authenticationManager;
-        this.passwordEncoder = passwordEncoder;
     }
 
-    // ✅ Register new user
+    // Register new user (DO NOT encode here; service will encode)
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody User user) {
         try {
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
+            // Keep password as plain here; UserService.saveUser() will encode it.
             userService.saveUser(user);
             return ResponseEntity.ok("User registered successfully. Please verify your email.");
         } catch (IllegalArgumentException e) {
@@ -47,26 +42,33 @@ public class AuthController {
         }
     }
 
-    // ✅ Login with JWT and email verification check
+    // Login with JWT and email verification check
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
-        var foundUser = userService.findByUsername(loginRequest.getUsername()).orElse(null);
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            loginRequest.getUsername(),
+                            loginRequest.getPassword()
+                    )
+            );
 
-        if (foundUser == null || !passwordEncoder.matches(loginRequest.getPassword(), foundUser.getPassword())) {
+            var foundUser = userService.findByUsername(loginRequest.getUsername())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            if (!foundUser.isEmailVerified()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("Please verify your email before logging in.");
+            }
+
+            String token = jwtUtil.generateToken(foundUser.getUsername());
+            return ResponseEntity.ok(new LoginResponse(token));
+
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials.");
         }
-
-        if (!foundUser.isEmailVerified()) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Please verify your email before logging in.");
-        }
-
-        // ✅ Generate token directly
-        String token = jwtUtil.generateToken(foundUser.getUsername());
-        return ResponseEntity.ok(new LoginResponse(token));
     }
 
-
-    // ✅ Verify email
     @GetMapping("/verify-email")
     public ResponseEntity<String> verifyEmail(@RequestParam("token") String token) {
         try {
@@ -77,7 +79,6 @@ public class AuthController {
         }
     }
 
-    // ✅ Request password reset
     @PostMapping("/request-password-reset")
     public ResponseEntity<String> requestPasswordReset(@RequestParam("email") String email) {
         try {
@@ -88,7 +89,6 @@ public class AuthController {
         }
     }
 
-    // ✅ Reset password
     @PostMapping("/reset-password")
     public ResponseEntity<String> resetPassword(@RequestParam("token") String token,
                                                 @RequestParam("newPassword") String newPassword) {

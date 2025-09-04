@@ -6,10 +6,9 @@ import com.example.pizzawebapp.entity.User;
 import com.example.pizzawebapp.repository.EmailVerificationTokenRepository;
 import com.example.pizzawebapp.repository.PasswordResetTokenRepository;
 import com.example.pizzawebapp.repository.UserRepository;
+import com.example.pizzawebapp.security.CustomUserDetails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -29,7 +28,7 @@ public class UserService implements UserDetailsService {
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
 
-    // ✅ Constructor Injection (no field injection)
+    // ✅ Constructor Injection
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        EmailVerificationTokenRepository emailVerificationTokenRepository,
@@ -68,23 +67,16 @@ public class UserService implements UserDetailsService {
     }
 
     /**
-     * ✅ Implementation of UserDetailsService (used by Spring Security & JwtAuthorizationFilter)
+     * ✅ Implementation of UserDetailsService
      */
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
 
-        return new org.springframework.security.core.userdetails.User(
-                user.getUsername(),
-                user.getPassword(),
-                getAuthorities(user.getRole())
-        );
+        return new CustomUserDetails(user); // ✅ Use our CustomUserDetails
     }
 
-    /**
-     * Get authenticated User entity from UserDetails
-     */
     public User getAuthenticatedUser(UserDetails userDetails) {
         return userRepository.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -159,10 +151,6 @@ public class UserService implements UserDetailsService {
         userRepository.save(user);
         passwordResetTokenRepository.delete(resetToken);
         logger.info("Password reset successfully for user: {}", user.getUsername());
-    }
-
-    private static Collection<? extends GrantedAuthority> getAuthorities(String role) {
-        return Collections.singletonList(new SimpleGrantedAuthority(role));
     }
 
     private void sendVerificationEmail(User user) {
