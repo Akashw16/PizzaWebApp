@@ -8,7 +8,6 @@ import com.example.pizzawebapp.repository.PasswordResetTokenRepository;
 import com.example.pizzawebapp.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -25,17 +24,21 @@ public class UserService implements UserDetailsService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private EmailVerificationTokenRepository emailVerificationTokenRepository;
-
-    @Autowired
-    private PasswordResetTokenRepository passwordResetTokenRepository;
+    // ✅ Constructor Injection (no field injection)
+    public UserService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       EmailVerificationTokenRepository emailVerificationTokenRepository,
+                       PasswordResetTokenRepository passwordResetTokenRepository) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.emailVerificationTokenRepository = emailVerificationTokenRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
+    }
 
     public void saveUser(User user) {
         validateEmailDomain(user.getUsername(), "ROLE_USER");
@@ -64,10 +67,14 @@ public class UserService implements UserDetailsService {
         }
     }
 
+    /**
+     * ✅ Implementation of UserDetailsService (used by Spring Security & JwtAuthorizationFilter)
+     */
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPassword(),
@@ -75,6 +82,9 @@ public class UserService implements UserDetailsService {
         );
     }
 
+    /**
+     * Get authenticated User entity from UserDetails
+     */
     public User getAuthenticatedUser(UserDetails userDetails) {
         return userRepository.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -164,5 +174,4 @@ public class UserService implements UserDetailsService {
         logger.info("Verification email sent to: {}", user.getUsername());
         logger.info("✅ Use this link in Postman: http://localhost:8080/api/auth/verify-email?token={}", token);
     }
-
 }

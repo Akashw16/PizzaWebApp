@@ -52,11 +52,7 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
         var foundUser = userService.findByUsername(loginRequest.getUsername()).orElse(null);
 
-        if (foundUser == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials.");
-        }
-
-        if (!passwordEncoder.matches(loginRequest.getPassword(), foundUser.getPassword())) {
+        if (foundUser == null || !passwordEncoder.matches(loginRequest.getPassword(), foundUser.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials.");
         }
 
@@ -64,16 +60,11 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Please verify your email before logging in.");
         }
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        loginRequest.getUsername(),
-                        loginRequest.getPassword()
-                )
-        );
-
+        // ✅ Generate token directly
         String token = jwtUtil.generateToken(foundUser.getUsername());
         return ResponseEntity.ok(new LoginResponse(token));
     }
+
 
     // ✅ Verify email
     @GetMapping("/verify-email")
