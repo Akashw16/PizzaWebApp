@@ -32,8 +32,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody User user) {
         try {
-            // Keep password as plain here; UserService.saveUser() will encode it.
-            userService.saveUser(user);
+            userService.registerUser(user); // ✅ fixed method name
             return ResponseEntity.ok("User registered successfully. Please verify your email.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
@@ -41,6 +40,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred.");
         }
     }
+
 
     // Login with JWT and email verification check
     @PostMapping("/login")

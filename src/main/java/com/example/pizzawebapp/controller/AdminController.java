@@ -1,59 +1,76 @@
 package com.example.pizzawebapp.controller;
 
-import com.example.pizzawebapp.service.PromoCodeService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.pizzawebapp.entity.User;
+import com.example.pizzawebapp.repository.UserRepository;
+import com.example.pizzawebapp.service.UserService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin/promo")
+@RequestMapping("/api/admin")
 public class AdminController {
 
-    @Autowired
-    private PromoCodeService promoCodeService;
+    private final UserService userService;
+    private final UserRepository userRepository;
+
+    public AdminController(UserService userService, UserRepository userRepository) {
+        this.userService = userService;
+        this.userRepository = userRepository;
+    }
 
     /**
-     * Create a new promo code.
+     * Register a new admin.
+     * First admin can be created without authentication (bootstrap).
+     * After that, only admins can create new admins.
+     * Role will be auto-assigned based on email domain (@myApp.com → ROLE_ADMIN).
      */
-    @PostMapping("/create")
-    public ResponseEntity<?> createPromoCode(
-            @RequestParam String code,
-            @RequestParam double discountPercentage,
-            @RequestParam double minOrderAmount) {
+    @PostMapping("/register-admin")
+    public ResponseEntity<?> registerAdmin(@RequestBody User admin) {
+        long adminCount = userRepository.countByRole("ROLE_ADMIN");
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isBootstrap = adminCount == 0;
+
+        if (!isBootstrap) {
+            if (auth == null || !auth.isAuthenticated() ||
+                    auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("Only an admin can create another admin.");
+            }
+        }
+
         try {
-            promoCodeService.createPromoCode(code, discountPercentage, minOrderAmount);
-            return ResponseEntity.ok("Promo code created successfully.");
+            userService.registerUser(admin); // ✅ use registerUser (auto role assignment)
+            return ResponseEntity.status(HttpStatus.CREATED).body("Admin created successfully (via @myApp.com domain).");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Failed to create promo code: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to create admin: " + e.getMessage());
         }
     }
 
     /**
-     * Update an existing promo code.
+     * Promote an existing user to admin (admin-only).
+     * Only users with @myApp.com domain can be promoted.
      */
-    @PutMapping("/update")
-    public ResponseEntity<?> updatePromoCode(
-            @RequestParam String code,
-            @RequestParam(required = false) Double discountPercentage,
-            @RequestParam(required = false) Double minOrderAmount) {
-        try {
-            promoCodeService.updatePromoCode(code, discountPercentage, minOrderAmount);
-            return ResponseEntity.ok("Promo code updated successfully.");
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body("Failed to update promo code: " + e.getMessage());
+    @PostMapping("/promote/{username}")
+    public ResponseEntity<?> promoteToAdmin(@PathVariable String username) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() ||
+                auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only an admin can promote users.");
         }
-    }
 
-    /**
-     * Deactivate a promo code.
-     */
-    @DeleteMapping("/deactivate")
-    public ResponseEntity<?> deactivatePromoCode(@RequestParam String code) {
-        try {
-            promoCodeService.deactivatePromoCode(code);
-            return ResponseEntity.ok("Promo code deactivated successfully.");
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body("Failed to deactivate promo code: " + e.getMessage());
-        }
+        return userService.findByUsername(username).map(user -> {
+            if (!user.getUsername().endsWith("@myApp.com")) {
+                return ResponseEntity.badRequest().body("Only @myApp.com users can be admins.");
+            }
+            user.setRole("ROLE_ADMIN");
+            userRepository.save(user);
+            return ResponseEntity.ok("User promoted to admin successfully.");
+        }).orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found"));
     }
 }
